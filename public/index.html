@@ -1,0 +1,2222 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Дневник-трекер</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Lucide icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- XLSX export -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <!-- manifest will be injected dynamically -->
+  <link id="manifestLink" rel="manifest" href="">
+
+  <style>
+    :root{
+      --bg:#070810; --card:#0f1220; --card2:#0b0e1a; --line:#1f2540;
+      --text:#e9ecf7; --muted:#aab2d6; --accent:#7cf3ff; --good:#4ade80; --warn:#fbbf24; --bad:#fb7185;
+      --shadow:0 18px 60px rgba(0,0,0,.35);
+      --shadow2:0 10px 40px rgba(0,0,0,.30);
+      --radius:18px;
+    }
+    html[data-theme="light"]{
+      --bg:#f5f7ff; --card:#ffffff; --card2:#f3f6ff; --line:#dbe3ff;
+      --text:#0c1020; --muted:#4b587a; --accent:#2563eb; --good:#16a34a; --warn:#d97706; --bad:#dc2626;
+      --shadow:0 18px 60px rgba(10,20,60,.10);
+      --shadow2:0 10px 40px rgba(10,20,60,.08);
+    }
+
+    body{ margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;
+      background:radial-gradient(1200px 600px at 20% 0%, rgba(17,22,58,.45) 0%, var(--bg) 55%); color:var(--text); }
+    html[data-theme="light"] body{
+      background:radial-gradient(1200px 600px at 20% 0%, rgba(37,99,235,.10) 0%, var(--bg) 55%);
+    }
+
+    .wrap{ max-width:1180px; margin:0 auto; padding:14px; }
+    .top{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+    h1{ font-size:18px; margin:0; letter-spacing:.2px; }
+    .small{ color:var(--muted); font-size:12px; white-space:pre-wrap; }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace; }
+
+    .pill{ display:inline-flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--line); border-radius:999px; background:var(--card2); box-shadow:0 8px 25px rgba(0,0,0,.12); }
+    .btn{ background:var(--card2); border:1px solid var(--line); color:var(--text); padding:10px 12px; border-radius:14px; cursor:pointer; display:inline-flex; gap:8px; align-items:center; justify-content:center; }
+    .btn.primary{ border-color:rgba(124,243,255,.45); box-shadow:0 0 0 2px rgba(124,243,255,.08) inset; }
+    html[data-theme="light"] .btn.primary{ border-color:rgba(37,99,235,.45); box-shadow:0 0 0 2px rgba(37,99,235,.10) inset; }
+    .btn.small{ padding:8px 10px; border-radius:12px; font-size:12px; }
+    .btn:active{ transform:translateY(1px); }
+    .btnRow{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+
+    .tabs{ display:flex; gap:8px; flex-wrap:wrap; padding:10px; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.02); box-shadow:var(--shadow2); }
+    .tab{ display:flex; align-items:center; gap:8px; padding:10px 12px; border-radius:14px; cursor:pointer; border:1px solid transparent; color:var(--muted); user-select:none; }
+    .tab svg{ width:16px; height:16px; opacity:.95; }
+    .tab.active{ color:var(--text); border-color:rgba(124,243,255,.25); background:rgba(124,243,255,.06); }
+    html[data-theme="light"] .tab.active{ border-color:rgba(37,99,235,.25); background:rgba(37,99,235,.06); }
+
+    .card{ background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+      border:1px solid var(--line); border-radius:var(--radius); padding:14px; box-shadow:var(--shadow); }
+    .cardTitle{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; color:var(--muted); font-size:14px; }
+    .cardTitle .left{ display:flex; align-items:center; gap:8px; }
+    .cardTitle svg{ width:16px; height:16px; opacity:.95; }
+
+    .grid{ display:grid; grid-template-columns: 440px 1fr; gap:12px; }
+    @media (max-width: 980px){ .grid{ grid-template-columns:1fr; } }
+
+    label{ display:block; margin:10px 0 6px; font-size:12px; color:var(--muted); }
+    input, textarea, select{ width:100%; box-sizing:border-box; background:var(--card2); border:1px solid var(--line);
+      color:var(--text); border-radius:14px; padding:10px 12px; outline:none; }
+    textarea{ min-height:90px; resize:vertical; }
+    .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    @media (max-width: 520px){ .row2{ grid-template-columns:1fr; } }
+
+    .hidden{ display:none !important; }
+    .status{ margin-top:10px; font-size:12px; color:var(--muted); white-space:pre-wrap; }
+
+    /* habit cards */
+    .habitGrid{ display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:10px; margin-top:8px; }
+    @media (max-width: 520px){ .habitGrid{ grid-template-columns:1fr; } }
+    .habitCard{ border:1px solid var(--line); background: radial-gradient(800px 200px at 10% 0%, rgba(124,243,255,.08), transparent 60%), var(--card2);
+      border-radius:16px; padding:12px; cursor:pointer; box-shadow:0 10px 40px rgba(0,0,0,.14); transition:transform .08s ease; }
+    html[data-theme="light"] .habitCard{ background: radial-gradient(800px 200px at 10% 0%, rgba(37,99,235,.10), transparent 60%), var(--card2); }
+    .habitCard:active{ transform:translateY(1px); }
+    .habitCard.on{ border-color:rgba(74,222,128,.45); background: radial-gradient(800px 200px at 10% 0%, rgba(74,222,128,.12), transparent 60%), var(--card2); }
+    .habitCard .topRow{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .habitCard .name{ display:flex; align-items:center; gap:10px; font-weight:800; }
+    .habitCard .name svg{ width:18px; height:18px; }
+    .habitCard .meta{ font-size:12px; color:var(--muted); margin-top:6px; }
+    .checkBadge{ width:34px; height:34px; border-radius:12px; border:1px solid var(--line);
+      display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.02); }
+    .habitCard.on .checkBadge{ border-color:rgba(74,222,128,.45); background:rgba(74,222,128,.10); }
+    .checkBadge svg{ width:18px; height:18px; }
+
+    /* progress */
+    .pWrap{ border:1px solid var(--line); background:rgba(255,255,255,.02); border-radius:16px; padding:10px; margin-top:10px; }
+    .pTop{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+    .bar{ height:12px; border-radius:999px; background:rgba(255,255,255,.04); border:1px solid var(--line); overflow:hidden; margin-top:8px; }
+    .fill{ height:100%; width:0%; background:linear-gradient(90deg, rgba(124,243,255,.9), rgba(74,222,128,.9)); transition:width .22s ease; }
+    html[data-theme="light"] .fill{ background:linear-gradient(90deg, rgba(37,99,235,.9), rgba(22,163,74,.9)); }
+
+    /* calendar */
+    .calWrap{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+    .calGrid{ display:grid; grid-template-columns: repeat(7, 1fr); gap:8px; }
+    .dow{ font-size:12px; color:var(--muted); text-align:center; padding:6px 0; }
+    .day{
+      border:1px solid var(--line);
+      background:var(--card2);
+      border-radius:14px;
+      padding:10px;
+      min-height:58px;
+      cursor:pointer;
+      position:relative;
+      overflow:hidden;
+    }
+    .day.good{ border-color:rgba(74,222,128,.5); box-shadow:0 0 0 2px rgba(74,222,128,.08) inset; }
+    .day.warn{ border-color:rgba(251,191,36,.55); box-shadow:0 0 0 2px rgba(251,191,36,.08) inset; }
+    .day.bad { border-color:rgba(251,113,133,.55); box-shadow:0 0 0 2px rgba(251,113,133,.08) inset; }
+    .day .n{ font-weight:800; }
+    .day .m{ font-size:12px; color:var(--muted); margin-top:4px; }
+    .day.today::after{
+      content:"";
+      position:absolute; top:8px; right:8px;
+      width:10px; height:10px; border-radius:50%;
+      background:var(--accent);
+      opacity:.85;
+    }
+
+    /* DANGER pulse */
+    .dangerPill{
+      border-color:rgba(251,113,133,.55)!important;
+      box-shadow:0 0 0 2px rgba(251,113,133,.10) inset, 0 0 0 0 rgba(251,113,133,.35);
+      animation:pulse 1.4s infinite;
+    }
+    @keyframes pulse{
+      0%{ box-shadow:0 0 0 2px rgba(251,113,133,.10) inset, 0 0 0 0 rgba(251,113,133,.35); }
+      70%{ box-shadow:0 0 0 2px rgba(251,113,133,.10) inset, 0 0 0 14px rgba(251,113,133,0); }
+      100%{ box-shadow:0 0 0 2px rgba(251,113,133,.10) inset, 0 0 0 0 rgba(251,113,133,0); }
+    }
+
+    /* History */
+    .hTop{ display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+    .hFilters{ display:flex; gap:8px; flex-wrap:wrap; }
+    .chip{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 10px; border-radius:999px; border:1px solid var(--line);
+      background:rgba(255,255,255,.02); color:var(--muted); cursor:pointer;
+      font-size:12px; user-select:none;
+    }
+    .chip.active{ color:var(--text); border-color:rgba(124,243,255,.35); background:rgba(124,243,255,.08); }
+    html[data-theme="light"] .chip.active{ border-color:rgba(37,99,235,.35); background:rgba(37,99,235,.08); }
+
+    .timeline{ margin-top:12px; position:relative; }
+    .hGroupTitle{ margin:14px 0 8px; color:var(--muted); font-size:12px; display:flex; align-items:center; gap:8px; }
+    .hGroupTitle b{ color:var(--text); }
+
+    .tItem{ display:grid; grid-template-columns: 18px 1fr; gap:12px; align-items:stretch; margin:10px 0; }
+    .tLine{ position:relative; }
+    .tLine::before{ content:""; position:absolute; top:0; bottom:0; left:8px; width:2px; background:rgba(31,37,64,.55); }
+    html[data-theme="light"] .tLine::before{ background:rgba(37,99,235,.18); }
+    .tDot{ width:18px; height:18px; border-radius:50%; border:1px solid var(--line); background:var(--card2); margin-top:18px; box-shadow:0 10px 30px rgba(0,0,0,.14); }
+    .tDot.good{ border-color:rgba(74,222,128,.55); box-shadow:0 0 0 2px rgba(74,222,128,.08) inset; }
+    .tDot.warn{ border-color:rgba(251,191,36,.65); box-shadow:0 0 0 2px rgba(251,191,36,.10) inset; }
+    .tDot.bad { border-color:rgba(251,113,133,.65); box-shadow:0 0 0 2px rgba(251,113,133,.10) inset; }
+
+    .hCard{
+      border:1px solid var(--line);
+      background: radial-gradient(900px 240px at 10% 0%, rgba(124,243,255,.06), transparent 65%), var(--card2);
+      border-radius:16px; padding:12px; cursor:pointer;
+      transition: transform .08s ease;
+    }
+    html[data-theme="light"] .hCard{
+      background: radial-gradient(900px 240px at 10% 0%, rgba(37,99,235,.08), transparent 65%), var(--card2);
+    }
+    .hCard:active{ transform: translateY(1px); }
+    .hRow{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+    .hDate{ font-weight:900; }
+    .badge{
+      font-size:12px; padding:6px 10px; border-radius:999px; border:1px solid var(--line);
+      background:rgba(255,255,255,.02); color:var(--muted);
+      display:inline-flex; align-items:center; gap:8px;
+    }
+    .badge svg{ width:16px; height:16px; }
+    .hNote{ margin-top:10px; color:var(--muted); font-size:12px; white-space:pre-wrap; }
+    .hActions{ margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
+
+    /* Stats summary */
+    .statsTop{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+    .statsSummary{
+      margin-top:10px;
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:rgba(255,255,255,.02);
+      padding:12px;
+    }
+    .sumGrid{ display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:10px; }
+    @media (max-width: 980px){ .sumGrid{ grid-template-columns:1fr; } }
+    .sumCard{
+      border:1px solid var(--line); border-radius:16px; background:var(--card2); padding:12px;
+    }
+    .sumCard .t{ color:var(--muted); font-size:12px; }
+    .sumCard .v{ font-weight:900; margin-top:6px; font-size:18px; }
+
+    /* Goals/Habits editor */
+    .item{ border:1px solid var(--line); background:var(--card2); border-radius:16px; padding:12px;
+      display:grid; grid-template-columns: 1fr auto; gap:12px; align-items:center; }
+    .dowPick{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+    .dowBtn{ border:1px solid var(--line); background:rgba(255,255,255,.02); color:var(--muted); padding:6px 10px; border-radius:999px; cursor:pointer; font-size:12px; user-select:none; }
+    .dowBtn.on{ color:var(--text); border-color:rgba(124,243,255,.35); background:rgba(124,243,255,.08); }
+    html[data-theme="light"] .dowBtn.on{ border-color:rgba(37,99,235,.35); background:rgba(37,99,235,.08); }
+
+    /* quick mode */
+    .quickHint{ margin-top:8px; font-size:12px; color:var(--muted); }
+
+    /* Achievements & Challenges */
+    .miniGrid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; }
+    @media (max-width: 520px){ .miniGrid{ grid-template-columns:1fr; } }
+    .miniCard{ border:1px solid var(--line); background:rgba(255,255,255,.02); border-radius:16px; padding:12px; }
+    .miniCard b{ display:block; margin-bottom:6px; }
+    .achWrap{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+    .ach{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 10px; border-radius:999px; border:1px solid var(--line);
+      background:rgba(255,255,255,.02); color:var(--muted);
+      font-size:12px;
+    }
+    .ach.on{ color:var(--text); border-color:rgba(74,222,128,.45); background:rgba(74,222,128,.10); }
+    .ach.warn{ border-color:rgba(251,191,36,.55); background:rgba(251,191,36,.10); color:var(--text); }
+    .ach svg{ width:16px; height:16px; }
+
+    /* Heatmap */
+    .heatWrap{ margin-top:12px; border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.02); padding:12px; }
+    .heatTop{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+    .heatLegend{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; color:var(--muted); font-size:12px; }
+    .sq{ width:12px; height:12px; border-radius:4px; border:1px solid var(--line); display:inline-block; }
+    .sq.g{ background:rgba(74,222,128,.35); border-color:rgba(74,222,128,.45); }
+    .sq.y{ background:rgba(251,191,36,.35); border-color:rgba(251,191,36,.55); }
+    .sq.r{ background:rgba(251,113,133,.30); border-color:rgba(251,113,133,.55); }
+    .heatGrid{ display:grid; grid-auto-flow:column; grid-auto-columns: 12px; gap:4px; margin-top:10px; overflow:auto; padding-bottom:6px; }
+    .heatCol{ display:grid; grid-template-rows: repeat(7, 12px); gap:4px; }
+    .heatCell{ width:12px; height:12px; border-radius:4px; border:1px solid var(--line); background:rgba(255,255,255,.02); cursor:pointer; }
+    .heatCell.good{ background:rgba(74,222,128,.35); border-color:rgba(74,222,128,.45); }
+    .heatCell.warn{ background:rgba(251,191,36,.35); border-color:rgba(251,191,36,.55); }
+    .heatCell.bad { background:rgba(251,113,133,.30); border-color:rgba(251,113,133,.55); }
+    .heatCell.none{ opacity:.35; cursor:default; }
+
+    /* Settings tab (v18) */
+    .sGrid{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    @media (max-width: 980px){ .sGrid{ grid-template-columns:1fr; } }
+    .noteBox{ border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.02); padding:12px; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <h1>Дневник-трекер</h1>
+        <div class="small">v18 — напоминания (Google Calendar) • установка как приложение (PWA) • офлайн-очередь. Всё из v17 сохранено.</div>
+        <div class="pill small"><i data-lucide="sparkles"></i> <span class="mono" id="execHint">/exec?v=18</span></div>
+      </div>
+      <div class="btnRow">
+        <button class="btn small" id="themeBtn"><i data-lucide="sun-moon"></i> Тема</button>
+
+        <div class="pill" id="streakPill">
+          <span id="streakIconWrap"></span>
+          <span class="small">Streak:</span><b id="streakNow">—</b>
+          <span class="small">best:</span><b id="streakBest">—</b>
+        </div>
+
+        <button class="btn small" id="exportCsvBtn"><i data-lucide="download"></i> CSV</button>
+        <button class="btn small" id="exportXlsxBtn"><i data-lucide="file-spreadsheet"></i> XLSX</button>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" data-tab="today"><i data-lucide="pen-line"></i> Сегодня</div>
+      <div class="tab" data-tab="stats"><i data-lucide="line-chart"></i> Статистика</div>
+      <div class="tab" data-tab="history"><i data-lucide="layers"></i> История</div>
+      <div class="tab" data-tab="goals"><i data-lucide="target"></i> Цели</div>
+      <div class="tab" data-tab="settings"><i data-lucide="settings"></i> Настройки</div>
+    </div>
+
+    <!-- TODAY -->
+    <div id="tab-today" style="margin-top:12px;">
+      <div class="grid">
+        <div class="card">
+          <div class="cardTitle">
+            <div class="left"><i data-lucide="clipboard-list"></i><b>Сегодня</b></div>
+            <div class="small" id="lastSync">—</div>
+          </div>
+
+          <!-- Templates -->
+          <div class="pWrap" style="margin-top:0;">
+            <div class="pTop">
+              <div style="display:flex; gap:8px; align-items:center;">
+                <i data-lucide="layers-3"></i><b>Шаблон дня</b>
+              </div>
+              <div class="small">Сохраняй “как удобно тебе”</div>
+            </div>
+            <div class="row2" style="margin-top:8px;">
+              <div>
+                <select id="templateSelect"></select>
+              </div>
+              <div class="btnRow">
+                <button class="btn small" id="applyTemplateBtn" style="flex:1;"><i data-lucide="wand-2"></i> Применить</button>
+                <button class="btn small" id="saveTemplateBtn" style="flex:1;"><i data-lucide="save"></i> Сохранить</button>
+              </div>
+            </div>
+            <div class="small" id="templateHint" style="margin-top:6px;">Подсказка: сохраняет поля + отмеченные привычки.</div>
+          </div>
+
+          <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;">
+            <div style="flex:1; min-width:220px;">
+              <label>Дата</label>
+              <input id="date" type="date">
+            </div>
+            <div style="min-width:220px; flex:1;">
+              <label>Быстрая запись</label>
+              <button class="btn" id="quickBtn" style="width:100%;">
+                <i data-lucide="zap"></i> <span id="quickLabel">Выкл</span>
+              </button>
+              <div class="quickHint">Вкл = оставляем только настроение + привычки/цели + сохранить.</div>
+            </div>
+          </div>
+
+          <!-- Summaries -->
+          <div class="miniGrid">
+            <div class="miniCard">
+              <b><i data-lucide="calendar-range"></i> Сводка недели</b>
+              <div class="small" id="weekSummary">—</div>
+            </div>
+            <div class="miniCard">
+              <b><i data-lucide="calendar-days"></i> Сводка месяца</b>
+              <div class="small" id="monthSummary">—</div>
+            </div>
+          </div>
+
+          <!-- Achievements/Challenges -->
+          <div class="miniGrid">
+            <div class="miniCard">
+              <b><i data-lucide="award"></i> Достижения</b>
+              <div class="small">Открываются автоматически</div>
+              <div class="achWrap" id="achievements"></div>
+            </div>
+            <div class="miniCard">
+              <b><i data-lucide="flag"></i> Челленджи</b>
+              <div class="small">Выбери 1–2 и веди серию</div>
+              <div class="achWrap" id="challenges"></div>
+            </div>
+          </div>
+
+          <div style="margin-top:12px;">
+            <div class="cardTitle" style="margin-bottom:6px;">
+              <div class="left"><i data-lucide="target"></i><b>Цели на сегодня</b></div>
+              <div class="small" id="todayDOW">—</div>
+            </div>
+            <div class="small" id="goalsTodayHint">—</div>
+            <div id="goalsToday" class="habitGrid"></div>
+          </div>
+
+          <div class="pWrap">
+            <div class="pTop">
+              <div style="display:flex; gap:8px; align-items:center;">
+                <i data-lucide="check-circle-2"></i><b>Привычки</b>
+              </div>
+              <div class="small" id="habitsPctText">—</div>
+            </div>
+            <div class="bar"><div class="fill" id="habitsFill"></div></div>
+          </div>
+
+          <label>Привычки сегодня</label>
+          <div id="habitsToday" class="habitGrid"></div>
+
+          <div class="row2">
+            <div>
+              <label>Настроение (0–10)</label>
+              <input id="mood" type="number" step="1" min="0" max="10" placeholder="6">
+            </div>
+            <div class="optField">
+              <label>Стресс (0–10)</label>
+              <input id="stress" type="number" step="1" min="0" max="10" placeholder="3">
+            </div>
+          </div>
+
+          <div class="row2 optField">
+            <div>
+              <label>Сон (часов)</label>
+              <input id="sleep" type="number" step="0.5" min="0" max="24" placeholder="7.5">
+            </div>
+            <div>
+              <label>Питание (1–5)</label>
+              <select id="food">
+                <option value="0">—</option><option value="1">1</option><option value="2">2</option>
+                <option value="3">3</option><option value="4">4</option><option value="5">5</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row2 optField">
+            <div>
+              <label>Вес (кг)</label>
+              <input id="weight" type="number" step="0.1" min="0" max="300" placeholder="80.0">
+            </div>
+            <div>
+              <label>Спорт (минут)</label>
+              <input id="sport" type="number" step="5" min="0" max="600" placeholder="30">
+            </div>
+          </div>
+
+          <div class="row2 optField">
+            <div>
+              <label>Заработок за день (BYN)</label>
+              <input id="income" type="number" step="1" min="0" placeholder="25">
+            </div>
+            <div>
+              <label>Прогулка</label>
+              <select id="walk">
+                <option value="0">нет</option>
+                <option value="1">да</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="optField">
+            <label>Заметка</label>
+            <textarea id="note" placeholder="Коротко: что было важного?"></textarea>
+          </div>
+
+          <div class="btnRow" style="margin-top:12px;">
+            <button class="btn primary" id="saveBtn"><i data-lucide="save"></i> Сохранить</button>
+            <button class="btn" id="loadBtn"><i data-lucide="refresh-cw"></i> Обновить</button>
+            <div class="pill small"><i data-lucide="keyboard"></i> Ctrl+S / Ctrl+R / Q</div>
+          </div>
+
+          <div class="status" id="status"></div>
+          <div class="small" id="dangerHint"></div>
+          <div class="small" id="offlineHint"></div>
+        </div>
+
+        <div class="card">
+          <div class="cardTitle">
+            <div class="left"><i data-lucide="calendar-days"></i><b>Календарь</b></div>
+            <div class="small" id="monthTitle">—</div>
+          </div>
+
+          <div class="calWrap">
+            <div class="btnRow">
+              <button class="btn small" id="prevMonth"><i data-lucide="chevron-left"></i></button>
+              <div class="pill"><i data-lucide="calendar"></i> <b id="monthTitle2">—</b></div>
+              <button class="btn small" id="nextMonth"><i data-lucide="chevron-right"></i></button>
+            </div>
+            <div class="small">🟢 хороший • 🟡 средний • 🔴 сложный</div>
+          </div>
+
+          <div class="calGrid">
+            <div class="dow">Пн</div><div class="dow">Вт</div><div class="dow">Ср</div><div class="dow">Чт</div>
+            <div class="dow">Пт</div><div class="dow">Сб</div><div class="dow">Вс</div>
+          </div>
+          <div class="calGrid" id="calendar"></div>
+
+          <div class="small" style="margin-top:10px;">
+            Цвет считается по: настроение + стресс + сон + еда + спорт + привычки%.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div id="tab-stats" class="hidden" style="margin-top:12px;">
+      <div class="card">
+        <div class="statsTop">
+          <div class="cardTitle" style="margin:0;">
+            <div class="left"><i data-lucide="line-chart"></i><b>Статистика</b></div>
+          </div>
+          <div class="hFilters" id="statsFilters"></div>
+        </div>
+
+        <div class="statsSummary">
+          <div class="small" style="margin-bottom:8px;">Сравнение: эта неделя vs прошлая (авто)</div>
+          <div class="sumGrid" id="weekCompare"></div>
+        </div>
+
+        <div class="statsSummary">
+          <div class="small" style="margin-bottom:8px;">Сравнение: этот месяц vs прошлый (авто)</div>
+          <div class="sumGrid" id="monthCompare"></div>
+        </div>
+
+        <div id="chartsGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
+          <div class="card" style="padding:12px;"><div class="small">Life score</div><canvas id="chartScore" height="140"></canvas></div>
+          <div class="card" style="padding:12px;"><div class="small">Привычки (%)</div><canvas id="chartHabitsPct" height="140"></canvas></div>
+
+          <div class="card" style="padding:12px;"><div class="small">Настроение</div><canvas id="chartMood" height="140"></canvas></div>
+          <div class="card" style="padding:12px;"><div class="small">Стресс</div><canvas id="chartStress" height="140"></canvas></div>
+
+          <div class="card" style="padding:12px;"><div class="small">Сон (часы)</div><canvas id="chartSleep" height="140"></canvas></div>
+          <div class="card" style="padding:12px;"><div class="small">Питание (1–5)</div><canvas id="chartFood" height="140"></canvas></div>
+
+          <div class="card" style="padding:12px;"><div class="small">Спорт (мин)</div><canvas id="chartSport" height="140"></canvas></div>
+          <div class="card" style="padding:12px;"><div class="small">Вес (кг)</div><canvas id="chartWeight" height="140"></canvas></div>
+
+          <div class="card" style="padding:12px; grid-column:1 / -1;"><div class="small">Заработок (BYN)</div><canvas id="chartIncome" height="140"></canvas></div>
+        </div>
+
+        <div class="heatWrap">
+          <div class="heatTop">
+            <div style="display:flex; gap:8px; align-items:center;">
+              <i data-lucide="grid-3x3"></i> <b>Heatmap (12 месяцев)</b>
+            </div>
+            <div class="heatLegend">
+              <span>мало</span>
+              <span class="sq r"></span>
+              <span class="sq y"></span>
+              <span class="sq g"></span>
+              <span>много</span>
+            </div>
+          </div>
+          <div class="small">Клик по клетке откроет день.</div>
+          <div class="heatGrid" id="heatGrid"></div>
+        </div>
+
+        <div class="small" style="margin-top:10px;">Если графики пустые — нужно минимум 2 записи.</div>
+      </div>
+    </div>
+
+    <!-- HISTORY -->
+    <div id="tab-history" class="hidden" style="margin-top:12px;">
+      <div class="card">
+        <div class="cardTitle">
+          <div class="left"><i data-lucide="layers"></i><b>История</b></div>
+          <div class="small" id="historyCount">—</div>
+        </div>
+
+        <div class="hTop">
+          <div class="hFilters" id="historyFilters"></div>
+          <div style="min-width:260px; flex:1;">
+            <input id="historySearch" type="text" placeholder="Поиск: заметка / привычки / цели…">
+          </div>
+        </div>
+
+        <div class="timeline" id="historyList"></div>
+      </div>
+    </div>
+
+    <!-- GOALS -->
+    <div id="tab-goals" class="hidden" style="margin-top:12px;">
+      <div class="card">
+        <div class="cardTitle"><div class="left"><i data-lucide="check-square"></i><b>Привычки</b></div></div>
+
+        <div class="btnRow">
+          <input id="newHabit" type="text" placeholder="Например: Читать 10 минут">
+          <button class="btn primary" id="addHabit"><i data-lucide="plus"></i> Добавить</button>
+        </div>
+
+        <div class="small" style="margin-top:10px;">Список привычек:</div>
+        <div id="habitsList" style="margin-top:8px; display:flex; flex-direction:column; gap:10px;"></div>
+
+        <hr style="border:none; border-top:1px solid var(--line); margin:14px 0; opacity:.7;">
+
+        <div class="cardTitle"><div class="left"><i data-lucide="target"></i><b>Цели на неделю</b></div></div>
+        <div class="small">Цель показывается в выбранные дни на “Сегодня” и отмечается галочкой как привычка.</div>
+
+        <div class="btnRow" style="margin-top:8px;">
+          <input id="newGoalName" type="text" placeholder="Например: Отправить резюме">
+          <button class="btn primary" id="addGoal"><i data-lucide="plus"></i> Добавить цель</button>
+        </div>
+
+        <div class="small" style="margin-top:8px;">В какие дни показывать цель:</div>
+        <div class="dowPick" id="newGoalDays"></div>
+
+        <div class="small" style="margin-top:12px;">Список целей:</div>
+        <div id="goalsList" style="margin-top:8px; display:flex; flex-direction:column; gap:10px;"></div>
+
+        <hr style="border:none; border-top:1px solid var(--line); margin:14px 0; opacity:.7;">
+
+        <div class="cardTitle"><div class="left"><i data-lucide="layers-3"></i><b>Шаблоны дня</b></div></div>
+        <div class="small">Шаблон можно создать на “Сегодня” (кнопка “Сохранить”). Здесь — удаление.</div>
+        <div id="templatesList" style="margin-top:8px; display:flex; flex-direction:column; gap:10px;"></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS (v18) -->
+    <div id="tab-settings" class="hidden" style="margin-top:12px;">
+      <div class="card">
+        <div class="cardTitle">
+          <div class="left"><i data-lucide="settings"></i><b>Настройки</b></div>
+          <div class="small">v18</div>
+        </div>
+
+        <div class="sGrid">
+          <!-- PWA install -->
+          <div class="noteBox">
+            <b style="display:flex; gap:8px; align-items:center;"><i data-lucide="smartphone"></i> Установка как приложение</b>
+            <div class="small" style="margin-top:8px;">
+              На Android/Chrome появится кнопка “Установить”. На iPhone: Safari → “Поделиться” → “На экран Домой”.
+            </div>
+            <div class="btnRow" style="margin-top:10px;">
+              <button class="btn primary" id="installBtn" disabled><i data-lucide="download"></i> Установить</button>
+              <button class="btn" id="pwaCheckBtn"><i data-lucide="shield-check"></i> Проверить PWA</button>
+            </div>
+            <div class="small" id="pwaStatus" style="margin-top:8px;">—</div>
+          </div>
+
+          <!-- Reminder -->
+          <div class="noteBox">
+            <b style="display:flex; gap:8px; align-items:center;"><i data-lucide="bell"></i> Напоминание</b>
+            <div class="small" style="margin-top:8px;">
+              Это событие в Google Calendar. Если включены уведомления календаря — придёт на телефон.
+            </div>
+
+            <label style="margin-top:10px;">Время (например 21:30)</label>
+            <input id="remTime" type="time" value="21:30">
+
+            <div class="btnRow" style="margin-top:10px;">
+              <button class="btn primary" id="remEnableBtn"><i data-lucide="bell-ring"></i> Включить</button>
+              <button class="btn" id="remDisableBtn"><i data-lucide="bell-off"></i> Выключить</button>
+              <button class="btn" id="remRefreshBtn"><i data-lucide="refresh-cw"></i> Статус</button>
+            </div>
+            <div class="small" id="remStatus" style="margin-top:8px;">—</div>
+          </div>
+
+          <!-- Offline queue -->
+          <div class="noteBox">
+            <b style="display:flex; gap:8px; align-items:center;"><i data-lucide="wifi-off"></i> Офлайн-режим</b>
+            <div class="small" style="margin-top:8px;">
+              Если интернет пропадёт — “Сохранить” положит запись в очередь и отправит позже автоматически.
+            </div>
+            <div class="btnRow" style="margin-top:10px;">
+              <button class="btn" id="flushQueueBtn"><i data-lucide="upload-cloud"></i> Отправить очередь</button>
+              <button class="btn" id="clearQueueBtn"><i data-lucide="trash-2"></i> Очистить очередь</button>
+            </div>
+            <div class="small" id="queueStatus" style="margin-top:8px;">—</div>
+          </div>
+
+          <!-- Links/help -->
+          <div class="noteBox">
+            <b style="display:flex; gap:8px; align-items:center;"><i data-lucide="help-circle"></i> Подсказки</b>
+            <div class="small" style="margin-top:8px;">
+              Если “не обновляется”: разверни заново → открой /exec?v=18 → Ctrl+F5.
+            </div>
+            <div class="small" style="margin-top:8px;">
+              Полезно: включи уведомления Google Calendar на телефоне (Android/iOS).
+            </div>
+            <div class="small" style="margin-top:8px;" id="appUrlBox">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+(() => {
+  const VERSION = "v18";
+  const $ = (id) => document.getElementById(id);
+  function icons(){ try{ lucide.createIcons(); }catch(e){} }
+  function bridgeOk(){ return !!(window.google && google.script && google.script.run); }
+
+  // ===== APIs (must exist in Code.gs v18) =====
+  const apiGetConfig   = () => new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej).apiGetConfig());
+  const apiSaveConfig  = (o) => new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej).apiSaveConfig(o));
+  const apiList        = () => new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej).apiList());
+  const apiSave        = (d) => new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej).apiSave(d));
+  const apiGetReminder = () => new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej).apiGetReminder());
+  const apiSetReminder = (o) => new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej).apiSetReminder(o));
+  const apiDisableReminder = () => new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej).apiDisableReminder());
+  const apiGetAppUrl   = () => new Promise((res,rej)=>google.script.run.withSuccessHandler(res).withFailureHandler(rej).apiGetAppUrl());
+
+  const GOAL_PREFIX = "__goal__:";
+  const DOW = [ {k:0,t:"Пн"},{k:1,t:"Вт"},{k:2,t:"Ср"},{k:3,t:"Чт"},{k:4,t:"Пт"},{k:5,t:"Сб"},{k:6,t:"Вс"} ];
+
+  // cfg expands safely
+  let cfg = { habits: [], goals: [], theme: "dark", challengesActive: [], templates: [] };
+  let items = [];
+  let charts = {};
+  let formHabits = {};
+  let calendarCursor = new Date();
+  let quickMode = false;
+
+  const historyState = { range: "30d", q: "" };
+  const statsState = { range: "60d" };
+
+  // PWA
+  let APP_URL = "";
+  let deferredInstallPrompt = null;
+
+  // Offline queue
+  const QKEY = "diary_offline_queue_v1";
+  const readQueue = () => { try{ return JSON.parse(localStorage.getItem(QKEY) || "[]") || []; }catch(e){ return []; } };
+  const writeQueue = (arr) => localStorage.setItem(QKEY, JSON.stringify(arr || []));
+  const queueSize = () => readQueue().length;
+
+  function setQueueStatus(){
+    $("queueStatus").textContent = `В очереди: ${queueSize()} записей. Онлайн: ${navigator.onLine ? "да" : "нет"}.`;
+    $("offlineHint").textContent = queueSize() ? `📦 В очереди есть ${queueSize()} сохранений (они отправятся при появлении интернета).` : "";
+  }
+
+  // ===== Utils =====
+  function todayISO(){
+    const d = new Date();
+    const tz = d.getTimezoneOffset()*60000;
+    return new Date(d - tz).toISOString().slice(0,10);
+  }
+  function toNum(v){ const n = Number(v); return Number.isFinite(n) ? n : 0; }
+  function esc(s){ return (s ?? "").toString().replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;"); }
+  function setStatus(t){ $("status").textContent = t || ""; }
+
+  // ===== Date normalize (FIX for "после обновить пустой лист") =====
+  function isoFromAny_(v){
+    if (!v) return "";
+    const s = String(v).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    const d = new Date(s);
+    if (!Number.isFinite(d.getTime())) return s;
+    const tz = d.getTimezoneOffset() * 60000;
+    return new Date(d - tz).toISOString().slice(0,10);
+  }
+  function normalizeItems_(arr){
+    const out = (Array.isArray(arr) ? arr : []).map(it => {
+      const date = isoFromAny_(it?.date);
+      return { ...it, date };
+    }).filter(it => it.date);
+    out.sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    return out;
+  }
+
+  // ===== Theme =====
+  function applyTheme(theme){
+    const t = (theme === "light") ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", t);
+  }
+  async function toggleTheme(){
+    cfg.theme = (cfg.theme === "light") ? "dark" : "light";
+    applyTheme(cfg.theme);
+    try{ await apiSaveConfig(cfg); }catch(e){}
+    setTimeout(()=>{ resizeCharts(); }, 60);
+    icons();
+  }
+  $("themeBtn").addEventListener("click", toggleTheme);
+
+  // ===== Tabs =====
+  function openTab(name){
+    document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active", t.dataset.tab===name));
+    ["today","stats","history","goals","settings"].forEach(x => $("tab-"+x).classList.toggle("hidden", x!==name));
+    if (name === "history") setTimeout(()=>renderHistory(), 20);
+    if (name === "stats") setTimeout(()=>{ renderCharts(); renderHeatmap(); resizeCharts(); }, 80);
+    if (name === "goals") setTimeout(()=>{ renderTemplatesList(); }, 20);
+    if (name === "settings") setTimeout(()=>{ setQueueStatus(); }, 20);
+    icons();
+  }
+  document.querySelectorAll(".tab").forEach(t=>t.addEventListener("click", ()=>openTab(t.dataset.tab)));
+
+  // ===== Quick mode =====
+  function applyQuickMode(){
+    document.querySelectorAll(".optField").forEach(el=>{
+      el.classList.toggle("hidden", quickMode);
+    });
+    $("quickLabel").textContent = quickMode ? "Вкл" : "Выкл";
+  }
+  $("quickBtn").addEventListener("click", ()=>{
+    quickMode = !quickMode;
+    applyQuickMode();
+  });
+
+  // ===== Scoring =====
+  function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
+  function scoreSleep(h){ const v=toNum(h); if(!v) return 0; return clamp(1 - Math.abs(v-8)/6, 0, 1); }
+  function scoreSport(m){ return clamp(toNum(m)/30, 0, 1); }
+  function scoreFood(f){ return clamp(toNum(f)/5, 0, 1); }
+  function scoreMood(m){ return clamp(toNum(m)/10,0,1); }
+  function scoreStress(s){ return clamp(1 - toNum(s)/10,0,1); }
+
+  function habitsPctFromObj(hObj){
+    const total = cfg.habits.length || 0;
+    if (!total) return 0;
+    const done = cfg.habits.filter(h => !!(hObj && hObj[h])).length;
+    return Math.round((done/total)*100);
+  }
+
+  function lifeScore(it){
+    const habitsPct = (habitsPctFromObj(it.habits)/100 || 0);
+    const s =
+      0.30*scoreMood(it.mood) +
+      0.20*scoreStress(it.stress) +
+      0.25*scoreSleep(it.sleep_hours) +
+      0.10*scoreFood(it.food_quality) +
+      0.15*scoreSport(it.sport_min) +
+      0.15*habitsPct;
+    return Math.round(clamp(s,0,1)*100);
+  }
+  function scoreClass(score){
+    if (score >= 70) return "good";
+    if (score >= 40) return "warn";
+    return "bad";
+  }
+
+  // ===== Streak =====
+  function computeStreakNow(){
+    if (!items.length) return 0;
+    const set = new Set(items.map(x=>x.date));
+    let s = 0;
+    let cur = new Date();
+    while(true){
+      const tz = cur.getTimezoneOffset() * 60000;
+      const iso = new Date(cur - tz).toISOString().slice(0,10);
+      if (set.has(iso)) { s++; cur.setDate(cur.getDate()-1); }
+      else break;
+    }
+    return s;
+  }
+  function computeStreakBest(){
+    if (!items.length) return 0;
+    const dates = Array.from(new Set(items.map(x=>x.date))).sort(); // asc
+    if (!dates.length) return 0;
+    let best = 1, run = 1;
+    for (let i=1;i<dates.length;i++){
+      const prev = new Date(dates[i-1]+"T00:00:00");
+      const cur  = new Date(dates[i]+"T00:00:00");
+      prev.setDate(prev.getDate()+1);
+      const tz = prev.getTimezoneOffset()*60000;
+      const nextIso = new Date(prev - tz).toISOString().slice(0,10);
+      if (nextIso === dates[i]) run++;
+      else run = 1;
+      best = Math.max(best, run);
+    }
+    return best;
+  }
+  function renderStreak(){
+    const now = computeStreakNow();
+    const best = computeStreakBest();
+    $("streakNow").textContent = now;
+    $("streakBest").textContent = best;
+
+    let color = "rgba(170,178,214,.9)";
+    if (now >= 30) color = "rgba(74,222,128,.98)";
+    else if (now >= 7) color = "rgba(74,222,128,.95)";
+    else if (now >= 3) color = "rgba(124,243,255,.95)";
+    else if (now >= 1) color = "rgba(251,191,36,.95)";
+    $("streakIconWrap").innerHTML = `<i data-lucide="flame" style="color:${color}"></i>`;
+
+    const today = todayISO();
+    const hasToday = items.some(x=>x.date===today);
+    const pill = $("streakPill");
+    if (!hasToday){
+      $("dangerHint").textContent = "⚠️ Опасный день: сегодня ещё нет записи — streak может сломаться.";
+      pill.classList.add("dangerPill");
+    } else {
+      $("dangerHint").textContent = "";
+      pill.classList.remove("dangerPill");
+    }
+    icons();
+  }
+
+  // ===== DOW =====
+  function dowMon0FromISO(iso){
+    const d = new Date(iso+"T00:00:00");
+    return (d.getDay()+6)%7;
+  }
+
+  // ===== Icons guess =====
+  function iconByName(name){
+    const n = (name||"").toLowerCase();
+    if (n.includes("спорт") || n.includes("трен")) return "dumbbell";
+    if (n.includes("читать")) return "book-open";
+    if (n.includes("сон")) return "moon";
+    if (n.includes("вода") || n.includes("пить")) return "droplets";
+    if (n.includes("ход") || n.includes("прогул")) return "footprints";
+    if (n.includes("резюме")) return "file-text";
+    if (n.includes("деньги") || n.includes("заработ")) return "wallet";
+    return "sparkles";
+  }
+
+  // ===== Habit/Goal cards =====
+  function renderCardGrid(list){
+    return list.map(({name, key, hint})=>{
+      const on = !!formHabits[key];
+      const icon = iconByName(name);
+      const card = document.createElement("div");
+      card.className = "habitCard" + (on ? " on" : "");
+      card.innerHTML = `
+        <div class="topRow">
+          <div class="name"><i data-lucide="${icon}"></i><span>${esc(name)}</span></div>
+          <div class="checkBadge"><i data-lucide="${on ? "check" : "circle"}"></i></div>
+        </div>
+        <div class="meta">${esc(hint || (on ? "Отмечено" : "Нажми, чтобы отметить"))}</div>
+      `;
+      card.addEventListener("click", ()=>{
+        formHabits = { ...(formHabits||{}) };
+        formHabits[key] = !formHabits[key]; // независимые галочки
+        renderHabitsToday();
+        renderGoalsToday();
+        updateHabitsBar();
+        icons();
+      });
+      return card;
+    });
+  }
+
+  function updateHabitsBar(){
+    const total = cfg.habits.length || 0;
+    const done = total ? cfg.habits.filter(h => !!(formHabits && formHabits[h])).length : 0;
+    const pct = total ? Math.round((done/total)*100) : 0;
+    $("habitsPctText").textContent = total ? `${done}/${total} • ${pct}%` : "нет привычек";
+    $("habitsFill").style.width = `${pct}%`;
+  }
+
+  function renderHabitsToday(){
+    const box = $("habitsToday");
+    box.innerHTML = "";
+    if (!cfg.habits.length){
+      box.innerHTML = `<div class="small">Привычек нет. Добавь во вкладке “Цели”.</div>`;
+      updateHabitsBar();
+      icons();
+      return;
+    }
+    const cards = cfg.habits.map(h=>({ name:h, key:h }));
+    renderCardGrid(cards).forEach(c=>box.appendChild(c));
+    updateHabitsBar();
+    icons();
+  }
+
+  function renderGoalsToday(){
+    const box = $("goalsToday");
+    const hint = $("goalsTodayHint");
+    box.innerHTML = "";
+
+    const iso = $("date").value || todayISO();
+    const dow = dowMon0FromISO(iso);
+    $("todayDOW").textContent = "День: " + DOW[dow].t;
+
+    if (!cfg.goals.length){
+      hint.textContent = "Целей нет. Добавь во вкладке “Цели”.";
+      return;
+    }
+
+    const due = cfg.goals.filter(g => Array.isArray(g.daysOfWeek) && g.daysOfWeek.includes(dow));
+    if (!due.length){
+      hint.textContent = "На этот день целей нет (по расписанию).";
+      return;
+    }
+
+    hint.textContent = "Отмечай цели как “сделано сегодня”.";
+    const cards = due.map(g=>{
+      const key = GOAL_PREFIX + g.name;
+      return { name:g.name, key, hint:"цель на этот день" };
+    });
+
+    renderCardGrid(cards).forEach(c=>box.appendChild(c));
+    icons();
+  }
+
+  // ===== Achievements & Challenges =====
+  function badge(id, title, icon, on){
+    const el = document.createElement("div");
+    el.className = "ach" + (on ? " on" : "");
+    el.innerHTML = `<i data-lucide="${icon}"></i> ${esc(title)}`;
+    el.dataset.badge = id;
+    return el;
+  }
+
+  function avg(arr){
+    const a = arr.filter(x=>Number.isFinite(x));
+    if (!a.length) return NaN;
+    return a.reduce((p,c)=>p+c,0)/a.length;
+  }
+  function sum(arr){ return arr.reduce((p,c)=>p+c,0); }
+  function fmtNum(x, digits=1){
+    if (!Number.isFinite(x)) return "—";
+    return x.toFixed(digits);
+  }
+  function fmtDelta(a,b,unit=""){
+    if (!Number.isFinite(a) || !Number.isFinite(b)) return "—";
+    const d = a-b;
+    const sign = d>0 ? "+" : "";
+    return `${sign}${d.toFixed(1)}${unit}`;
+  }
+
+  function monthKey(iso){ return (iso||"").slice(0,7); }
+  function getMonthItems(ym){ return items.filter(it => monthKey(it.date) === ym); }
+  function prevMonthKey(ym){
+    const [y,m] = ym.split("-").map(Number);
+    const d = new Date(y, m-1, 1);
+    d.setMonth(d.getMonth()-1);
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+  }
+
+  function computeBestMonth_(){
+    const groups = new Map();
+    items.forEach(it=>{
+      const ym = monthKey(it.date);
+      if (!groups.has(ym)) groups.set(ym, []);
+      groups.get(ym).push(it);
+    });
+
+    let best = { ym:"", avg:-1 };
+    for (const [ym, arr] of groups.entries()){
+      if (arr.length < 5) continue;
+      const a = avg(arr.map(lifeScore));
+      if (Number.isFinite(a) && a > best.avg) best = { ym, avg:a };
+    }
+    return best;
+  }
+
+  function computeAchievements(){
+    const now = computeStreakNow();
+    const best = computeStreakBest();
+    const totalEntries = new Set(items.map(x=>x.date)).size;
+    const perfectHabitDays = items.filter(it => habitsPctFromObj(it.habits) === 100 && (cfg.habits.length>0)).length;
+    const highScoreDays = items.filter(it => lifeScore(it) >= 80).length;
+
+    const bestMonth = computeBestMonth_(); // { ym, avg }
+    const bestMonthOn = !!bestMonth.ym;
+
+    const out = [
+      { id:"streak7",  t:"7 дней подряд",  icon:"flame", on: now>=7 || best>=7 },
+      { id:"streak30", t:"30 дней подряд", icon:"flame", on: now>=30 || best>=30 },
+      { id:"streak100",t:"100 дней подряд",icon:"flame", on: now>=100 || best>=100 },
+
+      { id:"entries30", t:"30 записей", icon:"notebook-pen", on: totalEntries>=30 },
+      { id:"entries100",t:"100 записей", icon:"notebook-pen", on: totalEntries>=100 },
+
+      { id:"perfect7", t:"7 дней 100% привычек", icon:"check-check", on: perfectHabitDays>=7 },
+      { id:"score10", t:"10 дней score ≥80", icon:"sparkles", on: highScoreDays>=10 },
+
+      { id:"bestMonth", t: bestMonthOn ? ("Лучший месяц: "+bestMonth.ym) : "Лучший месяц", icon:"trophy", on: bestMonthOn },
+    ];
+    return out;
+  }
+
+  const CHALLENGES = [
+    { id:"sleep7x7", title:"Сон ≥ 7ч (7 дней)", icon:"moon", checkDay: (it)=>toNum(it.sleep_hours) >= 7 },
+    { id:"walk5x7", title:"Прогулка (5 дней/7)", icon:"footprints", checkDay: (it)=>!!it.walk },
+    { id:"sport3x7", title:"Спорт (3 дня/7)", icon:"dumbbell", checkDay: (it)=>toNum(it.sport_min) >= 20 },
+    { id:"mood7x7",  title:"Настроение ≥ 7 (7 дней)", icon:"smile", checkDay: (it)=>toNum(it.mood) >= 7 }
+  ];
+
+  function isoMinusDays(iso, n){
+    const d = new Date(iso+"T00:00:00");
+    d.setDate(d.getDate()-n);
+    const tz = d.getTimezoneOffset()*60000;
+    return new Date(d - tz).toISOString().slice(0,10);
+  }
+  function getItemByDate(iso){
+    const key = isoFromAny_(iso);
+    return items.find(x=>x.date===key) || null;
+  }
+
+  function challengeProgress(ch){
+    const today = todayISO();
+    const start = isoMinusDays(today, 6);
+    const days = [];
+    for (let i=0;i<7;i++){
+      const d = new Date(start+"T00:00:00");
+      d.setDate(d.getDate()+i);
+      const tz = d.getTimezoneOffset()*60000;
+      const iso = new Date(d - tz).toISOString().slice(0,10);
+      days.push(iso);
+    }
+    const vals = days.map(iso => {
+      const it = getItemByDate(iso);
+      return it ? ch.checkDay(it) : false;
+    });
+    const done = vals.filter(Boolean).length;
+    return { done, total: 7, need: ch.id==="walk5x7" ? 5 : (ch.id==="sport3x7" ? 3 : 7) };
+  }
+
+  async function toggleChallenge(id){
+    cfg.challengesActive = Array.isArray(cfg.challengesActive) ? cfg.challengesActive : [];
+    const set = new Set(cfg.challengesActive);
+    if (set.has(id)) set.delete(id); else set.add(id);
+    cfg.challengesActive = Array.from(set);
+    await apiSaveConfig(cfg);
+    renderChallenges();
+  }
+
+  function renderChallenges(){
+    const box = $("challenges");
+    box.innerHTML = "";
+    const active = new Set(Array.isArray(cfg.challengesActive) ? cfg.challengesActive : []);
+
+    CHALLENGES.forEach(ch=>{
+      const p = challengeProgress(ch);
+      const isActive = active.has(ch.id);
+      const txt = isActive
+        ? `${ch.title}: ${p.done}/${p.total} (нужно ${p.need})`
+        : ch.title;
+
+      const el = document.createElement("div");
+      el.className = "ach " + (isActive ? "on" : "");
+      el.innerHTML = `<i data-lucide="${ch.icon}"></i> ${esc(txt)}`;
+      el.style.cursor = "pointer";
+      el.title = isActive ? "Нажми: выключить" : "Нажми: включить";
+      el.addEventListener("click", ()=>toggleChallenge(ch.id));
+      box.appendChild(el);
+    });
+
+    icons();
+  }
+
+  function renderAchievements(){
+    const box = $("achievements");
+    box.innerHTML = "";
+    const list = computeAchievements();
+    list.forEach(bd=> box.appendChild(badge(bd.id, bd.t, bd.icon, bd.on)));
+    icons();
+  }
+
+  // ===== Calendar =====
+  function monthTitle(d){ return d.toLocaleString("ru-RU",{ month:"long", year:"numeric"}); }
+
+  function renderCalendar(){
+    const cal = $("calendar");
+    cal.innerHTML = "";
+
+    const year = calendarCursor.getFullYear();
+    const month = calendarCursor.getMonth();
+
+    $("monthTitle2").textContent = monthTitle(new Date(year, month, 1));
+    $("monthTitle").textContent = $("monthTitle2").textContent;
+
+    const first = new Date(year, month, 1);
+    const firstDay = (first.getDay()+6)%7;
+    const daysInMonth = new Date(year, month+1, 0).getDate();
+
+    for (let i=0;i<firstDay;i++){
+      const div = document.createElement("div");
+      div.className = "day";
+      div.style.opacity = "0";
+      div.style.pointerEvents = "none";
+      cal.appendChild(div);
+    }
+
+    const today = todayISO();
+    const map = new Map(items.map(it=>[it.date, it]));
+
+    for (let day=1; day<=daysInMonth; day++){
+      const iso = `${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+      const it = map.get(iso);
+      const div = document.createElement("div");
+      div.className = "day";
+      if (iso === today) div.classList.add("today");
+
+      if (it){
+        const sc = lifeScore(it);
+        div.classList.add(scoreClass(sc));
+        div.innerHTML = `<div class="n">${day}</div><div class="m">score: ${sc}</div>`;
+      } else {
+        div.innerHTML = `<div class="n">${day}</div><div class="m">—</div>`;
+      }
+
+      div.addEventListener("click", ()=>{
+        $("date").value = iso;
+        onDateChanged();
+        openTab("today");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+
+      cal.appendChild(div);
+    }
+  }
+  $("prevMonth").addEventListener("click", ()=>{ calendarCursor.setMonth(calendarCursor.getMonth()-1); renderCalendar(); });
+  $("nextMonth").addEventListener("click", ()=>{ calendarCursor.setMonth(calendarCursor.getMonth()+1); renderCalendar(); });
+
+  // ===== Heatmap =====
+  function renderHeatmap(){
+    const grid = $("heatGrid");
+    if (!grid) return;
+    grid.innerHTML = "";
+
+    const map = new Map(items.map(it=>[it.date, it]));
+    const end = new Date(todayISO()+"T00:00:00");
+    const start = new Date(end);
+    start.setDate(start.getDate() - 364);
+
+    const startDow = (start.getDay()+6)%7;
+    start.setDate(start.getDate() - startDow);
+
+    const weeks = [];
+    const cursor = new Date(start);
+    while (cursor <= end){
+      const col = [];
+      for (let r=0;r<7;r++){
+        const tz = cursor.getTimezoneOffset()*60000;
+        const iso = new Date(cursor - tz).toISOString().slice(0,10);
+        col.push(iso);
+        cursor.setDate(cursor.getDate()+1);
+      }
+      weeks.push(col);
+    }
+
+    weeks.forEach(col=>{
+      const colEl = document.createElement("div");
+      colEl.className = "heatCol";
+      col.forEach(iso=>{
+        const cell = document.createElement("div");
+        const it = map.get(iso);
+        if (!it){
+          cell.className = "heatCell none";
+        }else{
+          const sc = lifeScore(it);
+          cell.className = "heatCell " + scoreClass(sc);
+          cell.title = `${iso} • score ${sc}`;
+          cell.addEventListener("click", ()=>{
+            $("date").value = iso;
+            onDateChanged();
+            openTab("today");
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          });
+        }
+        colEl.appendChild(cell);
+      });
+      grid.appendChild(colEl);
+    });
+  }
+
+  // ===== Form =====
+  function clearFormExceptDate(){
+    $("sleep").value = "";
+    $("food").value = "0";
+    $("mood").value = "";
+    $("stress").value = "";
+    $("weight").value = "";
+    $("sport").value = "";
+    $("income").value = "";
+    $("walk").value = "0";
+    $("note").value = "";
+    formHabits = {};
+    renderHabitsToday();
+    renderGoalsToday();
+    setQueueStatus();
+  }
+
+  function renderSummaries(){ /* placeholder, defined later */ }
+
+  function loadToForm(dateISO){
+    const key = isoFromAny_(dateISO);
+    const found = items.find(x=>x.date===key);
+    if (!found){ clearFormExceptDate(); renderSummaries(); return; }
+
+    $("date").value = found.date;
+    $("sleep").value = found.sleep_hours || "";
+    $("food").value  = String(found.food_quality || 0);
+    $("mood").value  = found.mood || "";
+    $("stress").value= found.stress || "";
+    $("weight").value= found.weight_kg || "";
+    $("sport").value = found.sport_min || "";
+    $("income").value= found.income_byn || "";
+    $("walk").value  = found.walk ? "1" : "0";
+    $("note").value  = found.note || "";
+    formHabits = { ...(found.habits || {}) };
+
+    renderHabitsToday();
+    renderGoalsToday();
+    renderAchievements();
+    renderChallenges();
+    renderStreak();
+    renderSummaries();
+    setQueueStatus();
+  }
+
+  function buildPayload(){
+    const d = isoFromAny_($("date").value || todayISO());
+    return {
+      date: d,
+      sleep_hours: $("sleep").value,
+      food_quality: $("food").value,
+      mood: $("mood").value,
+      stress: $("stress").value,
+      weight_kg: $("weight").value,
+      sport_min: $("sport").value,
+      income_byn: $("income").value,
+      walk: $("walk").value === "1",
+      habits: formHabits || {},
+      note: $("note").value || ""
+    };
+  }
+
+  function onDateChanged(){
+    const d = isoFromAny_($("date").value || todayISO());
+    const found = items.find(x=>x.date===d);
+    if (found) loadToForm(d);
+    else { clearFormExceptDate(); renderSummaries(); }
+    renderCalendar();
+  }
+  $("date").addEventListener("change", onDateChanged);
+
+  // ===== Export =====
+  function exportCSV(){
+    const header = ["date","sleep_hours","food_quality","mood","stress","weight_kg","sport_min","income_byn","walk","habits_json","note","score"];
+    const rows = [header.join(",")];
+    items.slice().reverse().forEach(it=>{
+      const habitsJson = JSON.stringify(it.habits||{}).replaceAll('"','""');
+      const row = [
+        it.date, it.sleep_hours, it.food_quality, it.mood, it.stress, it.weight_kg, it.sport_min, it.income_byn,
+        it.walk ? 1 : 0,
+        `"${habitsJson}"`,
+        `"${(it.note||"").replaceAll('"','""')}"`,
+        lifeScore(it)
+      ];
+      rows.push(row.join(","));
+    });
+    const csv = rows.join("\n");
+    const blob = new Blob([csv], { type:"text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "diary-export.csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+  }
+  $("exportCsvBtn").addEventListener("click", exportCSV);
+
+  function exportXLSX(){
+    const rows = items.slice().reverse().map(it => ({
+      date: it.date,
+      sleep_hours: toNum(it.sleep_hours),
+      food_quality: toNum(it.food_quality),
+      mood: toNum(it.mood),
+      stress: toNum(it.stress),
+      weight_kg: toNum(it.weight_kg),
+      sport_min: toNum(it.sport_min),
+      income_byn: toNum(it.income_byn),
+      walk: it.walk ? 1 : 0,
+      habits_done: habitsPctFromObj(it.habits) + "%",
+      habits_json: JSON.stringify(it.habits||{}),
+      note: it.note || "",
+      score: lifeScore(it)
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws, "Diary");
+    XLSX.writeFile(wb, "diary-export.xlsx");
+  }
+  $("exportXlsxBtn").addEventListener("click", exportXLSX);
+
+  // ===== Templates =====
+  function normalizeTemplates_(){
+    cfg.templates = Array.isArray(cfg.templates) ? cfg.templates : [];
+    if (!cfg.templates.some(t=>t && t.name==="Рабочий день")){
+      cfg.templates.unshift({
+        name:"Рабочий день",
+        fields:{ sleep_hours:"", food_quality:"3", stress:"", weight_kg:"", sport_min:"", income_byn:"", walk:false },
+        habitsOn:[]
+      });
+    }
+    if (!cfg.templates.some(t=>t && t.name==="Выходной")){
+      cfg.templates.unshift({
+        name:"Выходной",
+        fields:{ sleep_hours:"", food_quality:"4", stress:"", weight_kg:"", sport_min:"", income_byn:"", walk:true },
+        habitsOn:[]
+      });
+    }
+  }
+
+  function renderTemplateSelect(){
+    normalizeTemplates_();
+    const sel = $("templateSelect");
+    sel.innerHTML = "";
+    cfg.templates.forEach((t, idx)=>{
+      const opt = document.createElement("option");
+      opt.value = String(idx);
+      opt.textContent = t?.name || ("Шаблон "+(idx+1));
+      sel.appendChild(opt);
+    });
+    if (!cfg.templates.length){
+      const opt = document.createElement("option");
+      opt.value = "-1";
+      opt.textContent = "Шаблонов нет";
+      sel.appendChild(opt);
+    }
+  }
+
+  async function saveTemplateFromForm(){
+    const name = prompt("Название шаблона (например: 'Тяжёлый день' / 'Спорт-день'):");
+    if (!name) return;
+    const payload = buildPayload();
+    const habitsOn = Object.keys(payload.habits||{}).filter(k => payload.habits[k] && !k.startsWith(GOAL_PREFIX));
+    cfg.templates = Array.isArray(cfg.templates) ? cfg.templates : [];
+    cfg.templates.unshift({
+      name,
+      fields:{
+        sleep_hours: String(payload.sleep_hours ?? ""),
+        food_quality: String(payload.food_quality ?? "0"),
+        stress: String(payload.stress ?? ""),
+        weight_kg: String(payload.weight_kg ?? ""),
+        sport_min: String(payload.sport_min ?? ""),
+        income_byn: String(payload.income_byn ?? ""),
+        walk: !!payload.walk
+      },
+      habitsOn
+    });
+    await apiSaveConfig(cfg);
+    renderTemplateSelect();
+    renderTemplatesList();
+    alert("Шаблон сохранён ✅");
+  }
+
+  function applyTemplateToForm(){
+    const idx = Number($("templateSelect").value);
+    if (!Number.isFinite(idx) || idx < 0 || !cfg.templates[idx]) return;
+    const t = cfg.templates[idx];
+
+    $("sleep").value  = (t.fields?.sleep_hours ?? "");
+    $("food").value   = String(t.fields?.food_quality ?? "0");
+    $("stress").value = (t.fields?.stress ?? "");
+    $("weight").value = (t.fields?.weight_kg ?? "");
+    $("sport").value  = (t.fields?.sport_min ?? "");
+    $("income").value = (t.fields?.income_byn ?? "");
+    $("walk").value   = (t.fields?.walk ? "1" : "0");
+
+    formHabits = { ...(formHabits||{}) };
+    cfg.habits.forEach(h=>{ formHabits[h] = false; });
+    (t.habitsOn || []).forEach(h=>{ formHabits[h] = true; });
+
+    renderHabitsToday();
+    renderGoalsToday();
+    updateHabitsBar();
+    icons();
+    $("templateHint").textContent = `Применён шаблон: ${t.name}`;
+  }
+
+  $("saveTemplateBtn").addEventListener("click", ()=>saveTemplateFromForm());
+  $("applyTemplateBtn").addEventListener("click", ()=>applyTemplateToForm());
+
+  function renderTemplatesList(){
+    const box = $("templatesList");
+    if (!box) return;
+    normalizeTemplates_();
+    box.innerHTML = "";
+    if (!cfg.templates.length){
+      box.innerHTML = `<div class="small">Шаблонов нет. Создай на вкладке “Сегодня”.</div>`;
+      icons();
+      return;
+    }
+    cfg.templates.forEach((t, idx)=>{
+      const div = document.createElement("div");
+      div.className = "item";
+      const habitsCnt = (t.habitsOn||[]).length;
+      div.innerHTML = `
+        <div>
+          <b>${esc(t.name)}</b>
+          <div class="small">Привычек в шаблоне: ${habitsCnt}. Еда: ${esc(String(t.fields?.food_quality ?? "—"))}. Прогулка: ${t.fields?.walk ? "да":"нет"}.</div>
+        </div>
+        <div><button class="btn small"><i data-lucide="trash-2"></i> Удалить</button></div>
+      `;
+      div.querySelector("button").addEventListener("click", async ()=>{
+        if (!confirm("Удалить шаблон '"+t.name+"'?")) return;
+        cfg.templates.splice(idx,1);
+        await apiSaveConfig(cfg);
+        renderTemplateSelect();
+        renderTemplatesList();
+      });
+      box.appendChild(div);
+    });
+    icons();
+  }
+
+  // ===== Summaries week/month =====
+  function byDateAsc_(){ return items.slice().sort((a,b)=>(a.date||"").localeCompare(b.date||"")); }
+  function mapByDate_(){ return new Map(byDateAsc_().map(x=>[x.date,x])); }
+
+  function lastNDays_(n, endIso){
+    const map = mapByDate_();
+    const out = [];
+    const d = new Date(endIso+"T00:00:00");
+    for (let i=0;i<n;i++){
+      const dt = new Date(d);
+      dt.setDate(d.getDate()-i);
+      const tz = dt.getTimezoneOffset()*60000;
+      const iso = new Date(dt - tz).toISOString().slice(0,10);
+      const it = map.get(iso);
+      if (it) out.push(it);
+    }
+    return out;
+  }
+
+  function summaryText_(cur, prev){
+    const curSleep = avg(cur.map(x=>toNum(x.sleep_hours)));
+    const prevSleep= avg(prev.map(x=>toNum(x.sleep_hours)));
+    const curMood  = avg(cur.map(x=>toNum(x.mood)));
+    const prevMood = avg(prev.map(x=>toNum(x.mood)));
+    const curStress= avg(cur.map(x=>toNum(x.stress)));
+    const prevStress=avg(prev.map(x=>toNum(x.stress)));
+    const curHab   = avg(cur.map(x=>habitsPctFromObj(x.habits)));
+    const prevHab  = avg(prev.map(x=>habitsPctFromObj(x.habits)));
+    const curScore = avg(cur.map(lifeScore));
+    const prevScore= avg(prev.map(lifeScore));
+
+    const parts = [];
+    if (Number.isFinite(curScore) && Number.isFinite(prevScore)) parts.push(`Score: ${fmtNum(curScore,0)} (${fmtDelta(curScore, prevScore)})`);
+    if (Number.isFinite(curSleep)) parts.push(`Сон: ${fmtNum(curSleep)}ч (${fmtDelta(curSleep, prevSleep,"ч")})`);
+    if (Number.isFinite(curMood)) parts.push(`Настроение: ${fmtNum(curMood)} (${fmtDelta(curMood, prevMood)})`);
+    if (Number.isFinite(curStress)){
+      const d = Number.isFinite(prevStress) ? (curStress - prevStress) : NaN;
+      const sign = Number.isFinite(d) ? (d>0?"+":"") : "";
+      parts.push(`Стресс: ${fmtNum(curStress)} (${Number.isFinite(d)?(sign+d.toFixed(1)):"—"})`);
+    }
+    if (Number.isFinite(curHab)) parts.push(`Привычки: ${fmtNum(curHab)}% (${fmtDelta(curHab, prevHab,"%")})`);
+
+    let moodLine = "";
+    if (Number.isFinite(curMood) && Number.isFinite(prevMood)) moodLine = curMood >= prevMood ? "Настроение выросло ✅" : "Настроение снизилось ⚠️";
+    let sleepLine = "";
+    if (Number.isFinite(curSleep) && Number.isFinite(prevSleep)) sleepLine = curSleep >= prevSleep ? "Сон стал лучше ✅" : "Сон стал хуже ⚠️";
+    let stressLine = "";
+    if (Number.isFinite(curStress) && Number.isFinite(prevStress)) stressLine = curStress <= prevStress ? "Стресс снизился ✅" : "Стресс вырос ⚠️";
+
+    return `${parts.join(" • ")}\n${[moodLine,sleepLine,stressLine].filter(Boolean).join(" • ")}`.trim();
+  }
+
+  function renderSummaries(){
+    const sel = isoFromAny_($("date").value || todayISO());
+    const week = lastNDays_(7, sel);
+    const prevWeekEnd = isoMinusDays(sel, 7);
+    const prevWeek = lastNDays_(7, prevWeekEnd);
+    $("weekSummary").textContent = week.length ? summaryText_(week, prevWeek) : "Пока мало данных для недели.";
+
+    const ym = monthKey(sel);
+    const curM = getMonthItems(ym);
+    const prevM = getMonthItems(prevMonthKey(ym));
+    $("monthSummary").textContent = curM.length ? summaryText_(curM, prevM) : "Пока мало данных для месяца.";
+  }
+
+  // ===== GOALS TAB =====
+  let newGoalDays = new Set([0,2,4]);
+  function renderNewGoalDays(){
+    const box = $("newGoalDays");
+    box.innerHTML = "";
+    DOW.forEach(d=>{
+      const b = document.createElement("div");
+      b.className = "dowBtn" + (newGoalDays.has(d.k) ? " on" : "");
+      b.textContent = d.t;
+      b.addEventListener("click", ()=>{
+        if (newGoalDays.has(d.k)) newGoalDays.delete(d.k); else newGoalDays.add(d.k);
+        renderNewGoalDays();
+      });
+      box.appendChild(b);
+    });
+  }
+
+  function renderHabitsList(){
+    const box = $("habitsList");
+    box.innerHTML = "";
+    if (!cfg.habits.length){
+      box.innerHTML = `<div class="small">Пока привычек нет.</div>`;
+      icons();
+      return;
+    }
+    cfg.habits.forEach((h, idx)=>{
+      const div = document.createElement("div");
+      div.className = "item";
+      div.innerHTML = `
+        <div><b>${esc(h)}</b><div class="small">Будет видно на “Сегодня”</div></div>
+        <div><button class="btn small"><i data-lucide="trash-2"></i> Удалить</button></div>
+      `;
+      div.querySelector("button").addEventListener("click", async ()=>{
+        cfg.habits.splice(idx,1);
+        await apiSaveConfig(cfg);
+        await refreshAll(true);
+        openTab("goals");
+      });
+      box.appendChild(div);
+    });
+    icons();
+  }
+
+  function renderGoalsList(){
+    const box = $("goalsList");
+    box.innerHTML = "";
+    if (!cfg.goals.length){
+      box.innerHTML = `<div class="small">Пока целей нет.</div>`;
+      icons();
+      return;
+    }
+    cfg.goals.forEach((g, idx)=>{
+      const daysSet = new Set(Array.isArray(g.daysOfWeek) ? g.daysOfWeek : []);
+      const div = document.createElement("div");
+      div.className = "item";
+      div.innerHTML = `
+        <div>
+          <b>${esc(g.name)}</b>
+          <div class="small">Показывать в дни:</div>
+          <div class="dowPick" id="goalDays-${idx}"></div>
+        </div>
+        <div><button class="btn small"><i data-lucide="trash-2"></i> Удалить</button></div>
+      `;
+      const dowBox = div.querySelector(`#goalDays-${idx}`);
+      DOW.forEach(d=>{
+        const b = document.createElement("div");
+        b.className = "dowBtn" + (daysSet.has(d.k) ? " on" : "");
+        b.textContent = d.t;
+        b.addEventListener("click", async ()=>{
+          if (daysSet.has(d.k)) daysSet.delete(d.k); else daysSet.add(d.k);
+          g.daysOfWeek = Array.from(daysSet).sort((a,b)=>a-b);
+          await apiSaveConfig(cfg);
+          await refreshAll(true);
+          openTab("goals");
+        });
+        dowBox.appendChild(b);
+      });
+      div.querySelector("button").addEventListener("click", async ()=>{
+        cfg.goals.splice(idx,1);
+        await apiSaveConfig(cfg);
+        await refreshAll(true);
+        openTab("goals");
+      });
+      box.appendChild(div);
+    });
+    icons();
+  }
+
+  $("addHabit").addEventListener("click", async ()=>{
+    const v = ($("newHabit").value || "").trim();
+    if (!v) return;
+    if (!cfg.habits.includes(v)) cfg.habits.unshift(v);
+    $("newHabit").value = "";
+    await apiSaveConfig(cfg);
+    await refreshAll(true);
+    openTab("goals");
+  });
+
+  $("addGoal").addEventListener("click", async ()=>{
+    const name = ($("newGoalName").value || "").trim();
+    if (!name) return;
+    cfg.goals.unshift({ name, daysOfWeek: Array.from(newGoalDays).sort((a,b)=>a-b) });
+    $("newGoalName").value = "";
+    await apiSaveConfig(cfg);
+    await refreshAll(true);
+    openTab("goals");
+  });
+
+  // ===== STATS =====
+  function renderStatsFilters(){
+    const box = $("statsFilters");
+    box.innerHTML = "";
+    const filters = [
+      { id:"7d", label:"7д", icon:"calendar-clock" },
+      { id:"30d", label:"30д", icon:"calendar-range" },
+      { id:"60d", label:"60д", icon:"calendar-days" },
+      { id:"all", label:"Все", icon:"infinity" },
+    ];
+    filters.forEach(f=>{
+      const chip = document.createElement("div");
+      chip.className = "chip" + (statsState.range===f.id ? " active" : "");
+      chip.innerHTML = `<i data-lucide="${f.icon}"></i> ${f.label}`;
+      chip.addEventListener("click", ()=>{
+        statsState.range = f.id;
+        renderStatsFilters();
+        renderCharts();
+        renderHeatmap();
+        resizeCharts();
+      });
+      box.appendChild(chip);
+    });
+    icons();
+  }
+
+  function getStatsView(){
+    let view = items.slice().reverse();
+    if (statsState.range === "7d") view = view.slice(Math.max(0, view.length-7));
+    if (statsState.range === "30d") view = view.slice(Math.max(0, view.length-30));
+    if (statsState.range === "60d") view = view.slice(Math.max(0, view.length-60));
+    return view;
+  }
+
+  function makeLineChart(canvasId, labels, data){
+    const el = document.getElementById(canvasId);
+    if (!el) return;
+    const ctx = el.getContext("2d");
+    if (charts[canvasId]) charts[canvasId].destroy();
+    charts[canvasId] = new Chart(ctx, {
+      type: "line",
+      data: { labels, datasets: [{ data, tension:0.35, fill:true, pointRadius:3, pointHoverRadius:5, borderWidth:2 }] },
+      options: { responsive:true, plugins:{ legend:{display:false}, tooltip:{enabled:true} }, scales:{ x:{ ticks:{ maxTicksLimit:10 } } } }
+    });
+  }
+
+  function renderWeekCompare(){
+    const box = $("weekCompare");
+    box.innerHTML = "";
+    const today = todayISO();
+    const wThis = lastNDays_(7, today);
+    const prevEnd = isoMinusDays(today, 7);
+    const wPrev = lastNDays_(7, prevEnd);
+
+    const metrics = [
+      { t:"Score", a: avg(wThis.map(lifeScore)), b: avg(wPrev.map(lifeScore)), unit:"" },
+      { t:"Привычки %", a: avg(wThis.map(x=>habitsPctFromObj(x.habits))), b: avg(wPrev.map(x=>habitsPctFromObj(x.habits))), unit:"%" },
+      { t:"Настроение", a: avg(wThis.map(x=>toNum(x.mood))), b: avg(wPrev.map(x=>toNum(x.mood))), unit:"" },
+      { t:"Сон", a: avg(wThis.map(x=>toNum(x.sleep_hours))), b: avg(wPrev.map(x=>toNum(x.sleep_hours))), unit:"ч" },
+      { t:"Стресс", a: avg(wThis.map(x=>toNum(x.stress))), b: avg(wPrev.map(x=>toNum(x.stress))), unit:"" },
+      { t:"Спорт", a: avg(wThis.map(x=>toNum(x.sport_min))), b: avg(wPrev.map(x=>toNum(x.sport_min))), unit:"м" },
+    ];
+
+    metrics.forEach(m=>{
+      const div = document.createElement("div");
+      div.className = "sumCard";
+      div.innerHTML = `
+        <div class="t">${esc(m.t)}</div>
+        <div class="v">${Number.isFinite(m.a) ? m.a.toFixed(1)+m.unit : "—"}</div>
+        <div class="small">к прошлой: <b>${esc(fmtDelta(m.a,m.b,m.unit))}</b></div>
+      `;
+      box.appendChild(div);
+    });
+  }
+
+  function renderMonthCompare(){
+    const box = $("monthCompare");
+    box.innerHTML = "";
+    const today = todayISO();
+    const ym = monthKey(today);
+    const curM = getMonthItems(ym);
+    const prevM = getMonthItems(prevMonthKey(ym));
+
+    const metrics = [
+      { t:"Score", a: avg(curM.map(lifeScore)), b: avg(prevM.map(lifeScore)), unit:"" },
+      { t:"Привычки %", a: avg(curM.map(x=>habitsPctFromObj(x.habits))), b: avg(prevM.map(x=>habitsPctFromObj(x.habits))), unit:"%" },
+      { t:"Настроение", a: avg(curM.map(x=>toNum(x.mood))), b: avg(prevM.map(x=>toNum(x.mood))), unit:"" },
+      { t:"Сон", a: avg(curM.map(x=>toNum(x.sleep_hours))), b: avg(prevM.map(x=>toNum(x.sleep_hours))), unit:"ч" },
+      { t:"Стресс", a: avg(curM.map(x=>toNum(x.stress))), b: avg(prevM.map(x=>toNum(x.stress))), unit:"" },
+      { t:"Спорт", a: avg(curM.map(x=>toNum(x.sport_min))), b: avg(prevM.map(x=>toNum(x.sport_min))), unit:"м" },
+      { t:"Вес", a: avg(curM.map(x=>toNum(x.weight_kg))), b: avg(prevM.map(x=>toNum(x.weight_kg))), unit:"кг" },
+      { t:"Заработок", a: sum(curM.map(x=>toNum(x.income_byn))), b: sum(prevM.map(x=>toNum(x.income_byn))), unit:" BYN" },
+    ];
+
+    metrics.forEach(m=>{
+      const div = document.createElement("div");
+      div.className = "sumCard";
+      div.innerHTML = `
+        <div class="t">${esc(m.t)}</div>
+        <div class="v">${Number.isFinite(m.a) ? (m.t==="Заработок" ? Math.round(m.a)+m.unit : m.a.toFixed(1)+m.unit) : "—"}</div>
+        <div class="small">к прошлому: <b>${esc(fmtDelta(m.a,m.b,m.unit))}</b></div>
+      `;
+      box.appendChild(div);
+    });
+  }
+
+  function renderCharts(){
+    const view = getStatsView();
+    if (view.length < 2){
+      Object.values(charts).forEach(ch=>{ try{ ch.destroy(); }catch(e){} });
+      charts = {};
+      return;
+    }
+    const labels = view.map(x => (x.date||"").slice(5));
+
+    makeLineChart("chartScore", labels, view.map(lifeScore));
+    makeLineChart("chartHabitsPct", labels, view.map(x=>habitsPctFromObj(x.habits)));
+    makeLineChart("chartMood", labels, view.map(x=>toNum(x.mood)));
+    makeLineChart("chartStress", labels, view.map(x=>toNum(x.stress)));
+    makeLineChart("chartSleep", labels, view.map(x=>toNum(x.sleep_hours)));
+    makeLineChart("chartFood", labels, view.map(x=>toNum(x.food_quality)));
+    makeLineChart("chartSport", labels, view.map(x=>toNum(x.sport_min)));
+    makeLineChart("chartWeight", labels, view.map(x=>toNum(x.weight_kg)));
+    makeLineChart("chartIncome", labels, view.map(x=>toNum(x.income_byn)));
+
+    renderWeekCompare();
+    renderMonthCompare();
+  }
+
+  function resizeCharts(){
+    Object.values(charts).forEach(ch=>{ try{ ch.resize(); }catch(e){} });
+  }
+
+  // ===== HISTORY =====
+  function daysAgoISO(n){
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    const tz = d.getTimezoneOffset()*60000;
+    return new Date(d - tz).toISOString().slice(0,10);
+  }
+  function monthStartISO(){
+    const d = new Date();
+    d.setDate(1);
+    const tz = d.getTimezoneOffset()*60000;
+    return new Date(d - tz).toISOString().slice(0,10);
+  }
+
+  function renderHistoryFilters(){
+    const box = $("historyFilters");
+    box.innerHTML = "";
+    const filters = [
+      { id:"7d", label:"7д", icon:"calendar-clock" },
+      { id:"30d", label:"30д", icon:"calendar-range" },
+      { id:"month", label:"Этот месяц", icon:"calendar-days" },
+      { id:"all", label:"Все", icon:"infinity" },
+    ];
+    filters.forEach(f=>{
+      const chip = document.createElement("div");
+      chip.className = "chip" + (historyState.range===f.id ? " active" : "");
+      chip.innerHTML = `<i data-lucide="${f.icon}"></i> ${f.label}`;
+      chip.addEventListener("click", ()=>{
+        historyState.range = f.id;
+        renderHistoryFilters();
+        renderHistory();
+      });
+      box.appendChild(chip);
+    });
+    icons();
+  }
+
+  function habitsText(it){
+    const h = it.habits || {};
+    const keys = Object.keys(h).filter(k => !!h[k]);
+    const goals = keys.filter(k=>k.startsWith(GOAL_PREFIX)).map(k=>k.slice(GOAL_PREFIX.length));
+    const habits = keys.filter(k=>!k.startsWith(GOAL_PREFIX));
+    return { goals, habits, all: [...goals, ...habits] };
+  }
+
+  function groupKeyMonth(dateISO){ return (dateISO||"").slice(0,7); }
+  function groupTitleMonth(key){
+    const [y,m] = key.split("-");
+    const d = new Date(Number(y), Number(m)-1, 1);
+    return d.toLocaleString("ru-RU",{ month:"long", year:"numeric"});
+  }
+  function weekStartISO(dateISO){
+    const d = new Date(dateISO+"T00:00:00");
+    const day = (d.getDay()+6)%7;
+    d.setDate(d.getDate()-day);
+    const tz = d.getTimezoneOffset()*60000;
+    return new Date(d - tz).toISOString().slice(0,10);
+  }
+
+  function renderHistory(){
+    const list = $("historyList");
+    const q = (historyState.q || "").trim().toLowerCase();
+
+    let from = "";
+    if (historyState.range === "7d") from = daysAgoISO(6);
+    if (historyState.range === "30d") from = daysAgoISO(29);
+    if (historyState.range === "month") from = monthStartISO();
+
+    let view = items.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+    if (from) view = view.filter(it => (it.date||"") >= from);
+
+    if (q){
+      view = view.filter(it=>{
+        const ht = habitsText(it);
+        const hay = [it.date, it.note || "", ...ht.all].join(" ").toLowerCase();
+        return hay.includes(q);
+      });
+    }
+
+    $("historyCount").textContent = `Записей: ${view.length}`;
+    list.innerHTML = "";
+    if (!view.length){
+      list.innerHTML = `<div class="small" style="margin-top:10px;">Нет записей по выбранному фильтру.</div>`;
+      icons();
+      return;
+    }
+
+    let lastMonth = "";
+    let lastWeek = "";
+
+    view.forEach(it=>{
+      const mKey = groupKeyMonth(it.date);
+      if (mKey !== lastMonth){
+        const h = document.createElement("div");
+        h.className = "hGroupTitle";
+        h.innerHTML = `<i data-lucide="calendar"></i> <b>${esc(groupTitleMonth(mKey))}</b>`;
+        list.appendChild(h);
+        lastMonth = mKey;
+        lastWeek = "";
+      }
+
+      const wKey = weekStartISO(it.date);
+      if (wKey !== lastWeek){
+        const w = document.createElement("div");
+        w.className = "hGroupTitle";
+        w.innerHTML = `<i data-lucide="git-commit"></i> Неделя с <b>${esc(wKey)}</b>`;
+        list.appendChild(w);
+        lastWeek = wKey;
+      }
+
+      const sc = lifeScore(it);
+      const cls = scoreClass(sc);
+      const pct = habitsPctFromObj(it.habits);
+
+      const t = document.createElement("div");
+      t.className = "tItem";
+      t.innerHTML = `
+        <div class="tLine"><div class="tDot ${cls}"></div></div>
+        <div class="hCard">
+          <div class="hRow">
+            <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+              <div class="hDate">${esc(it.date)}</div>
+              <div class="badge"><i data-lucide="sparkles"></i> score ${sc}</div>
+              <div class="badge"><i data-lucide="check-circle-2"></i> привычки ${pct}%</div>
+              <div class="badge"><i data-lucide="smile"></i> ${toNum(it.mood)}</div>
+              <div class="badge"><i data-lucide="activity"></i> ${toNum(it.stress)}</div>
+              <div class="badge"><i data-lucide="moon"></i> ${toNum(it.sleep_hours)}ч</div>
+              <div class="badge"><i data-lucide="dumbbell"></i> ${toNum(it.sport_min)}м</div>
+              <div class="badge"><i data-lucide="wallet"></i> ${toNum(it.income_byn)} BYN</div>
+            </div>
+          </div>
+
+          ${it.note ? `<div class="hNote">${esc(it.note).slice(0,260)}${it.note.length>260?"…":""}</div>` : `<div class="hNote">—</div>`}
+
+          <div class="hActions">
+            <button class="btn small" data-open="${esc(it.date)}"><i data-lucide="corner-up-left"></i> Открыть</button>
+            <button class="btn small" data-copy="${esc(it.date)}"><i data-lucide="copy"></i> Скопировать в сегодня</button>
+          </div>
+        </div>
+      `;
+      list.appendChild(t);
+    });
+
+    list.querySelectorAll("button[data-open]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const d = btn.getAttribute("data-open");
+        $("date").value = d;
+        onDateChanged();
+        openTab("today");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    });
+
+    list.querySelectorAll("button[data-copy]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{
+        const d = btn.getAttribute("data-copy");
+        const it = items.find(x=>x.date===d);
+        if (!it) return;
+
+        $("date").value = todayISO();
+        $("sleep").value = it.sleep_hours || "";
+        $("food").value  = String(it.food_quality || 0);
+        $("mood").value  = it.mood || "";
+        $("stress").value= it.stress || "";
+        $("weight").value= it.weight_kg || "";
+        $("sport").value = it.sport_min || "";
+        $("income").value= it.income_byn || "";
+        $("walk").value  = it.walk ? "1" : "0";
+        $("note").value  = it.note || "";
+        formHabits = { ...(it.habits || {}) };
+
+        renderHabitsToday();
+        renderGoalsToday();
+        updateHabitsBar();
+        renderAchievements();
+        renderChallenges();
+        renderStreak();
+        renderSummaries();
+        setQueueStatus();
+
+        openTab("today");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    });
+
+    icons();
+  }
+
+  $("historySearch").addEventListener("input", (e)=>{
+    historyState.q = e.target.value || "";
+    renderHistory();
+  });
+
+  // ===== Hotkeys =====
+  document.addEventListener("keydown", (e)=>{
+    const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : "";
+    const inInput = (tag === "input" || tag === "textarea" || tag === "select");
+
+    if (e.ctrlKey && e.key.toLowerCase() === "s"){
+      e.preventDefault();
+      $("saveBtn").click();
+      return;
+    }
+    if (e.ctrlKey && e.key.toLowerCase() === "r"){
+      e.preventDefault();
+      $("loadBtn").click();
+      return;
+    }
+    if (!e.ctrlKey && !e.metaKey && !e.altKey){
+      if (!inInput && e.key.toLowerCase() === "q"){
+        e.preventDefault();
+        $("quickBtn").click();
+        return;
+      }
+      if (!inInput && /^[0-9]$/.test(e.key)){
+        e.preventDefault();
+        const v = (e.key === "0") ? 10 : Number(e.key);
+        $("mood").value = String(v);
+        return;
+      }
+    }
+  });
+
+  // ===== Offline queue: flush =====
+  async function flushQueue(){
+    const q = readQueue();
+    if (!q.length) { setQueueStatus(); return { ok:true, sent:0 }; }
+    if (!navigator.onLine) { setQueueStatus(); return { ok:false, sent:0, reason:"offline" }; }
+
+    let sent = 0;
+    for (const payload of q){
+      try{
+        await apiSave(payload);
+        sent++;
+      } catch(e){
+        const rest = q.slice(sent);
+        writeQueue(rest);
+        setQueueStatus();
+        return { ok:false, sent, reason:"save failed" };
+      }
+    }
+
+    writeQueue([]);
+    setQueueStatus();
+    return { ok:true, sent };
+  }
+
+  $("flushQueueBtn").addEventListener("click", async ()=>{
+    setStatus("Отправляю очередь…");
+    const r = await flushQueue();
+    if (r.ok) setStatus(`Очередь отправлена ✅ (${r.sent})`);
+    else setStatus(`Не удалось отправить всё. Отправлено: ${r.sent}.`);
+    await refreshAll(true);
+  });
+  $("clearQueueBtn").addEventListener("click", ()=>{
+    if (!confirm("Очистить очередь? Несохранённые офлайн-записи исчезнут.")) return;
+    writeQueue([]);
+    setQueueStatus();
+    setStatus("Очередь очищена.");
+  });
+
+  window.addEventListener("online", async ()=>{
+    setQueueStatus();
+    const r = await flushQueue();
+    if (r.ok && r.sent) {
+      setStatus(`Интернет вернулся — отправил ${r.sent} офлайн-записей ✅`);
+      await refreshAll(true);
+    }
+  });
+  window.addEventListener("offline", ()=>setQueueStatus());
+
+  // ===== Save / Load =====
+  $("saveBtn").addEventListener("click", async ()=>{
+    const payload = buildPayload();
+    setStatus("Сохраняю…");
+
+    try{
+      await apiSave(payload);
+      setStatus("Сохранено ✅");
+      await refreshAll(true);
+      return;
+    }catch(e){
+      const q = readQueue();
+      q.push(payload);
+      writeQueue(q);
+      setQueueStatus();
+      setStatus("Нет связи или ошибка сервера.\n📦 Запись сохранена в офлайн-очередь и отправится позже.");
+      return;
+    }
+  });
+
+  $("loadBtn").addEventListener("click", ()=>refreshAll(true));
+
+  // ===== Reminder UI (v18) =====
+  async function refreshReminderUI(){
+    try{
+      const r = await apiGetReminder();
+      $("remTime").value = r.time || "21:30";
+      $("remStatus").textContent = r.enabled
+        ? `✅ Включено. Время: ${r.time}. (Событие в календаре создано)`
+        : `⛔ Выключено.`;
+    }catch(e){
+      $("remStatus").textContent = "Ошибка чтения статуса напоминания: " + (e?.message || e);
+    }
+  }
+  $("remRefreshBtn").addEventListener("click", refreshReminderUI);
+
+  $("remEnableBtn").addEventListener("click", async ()=>{
+    $("remStatus").textContent = "Включаю…";
+    try{
+      const time = $("remTime").value || "21:30";
+      await apiSetReminder({ time, calendarId:"primary" });
+      await refreshReminderUI();
+    }catch(e){
+      $("remStatus").textContent = "Ошибка включения: " + (e?.message || e);
+    }
+  });
+
+  $("remDisableBtn").addEventListener("click", async ()=>{
+    $("remStatus").textContent = "Выключаю…";
+    try{
+      await apiDisableReminder();
+      await refreshReminderUI();
+    }catch(e){
+      $("remStatus").textContent = "Ошибка выключения: " + (e?.message || e);
+    }
+  });
+
+  // ===== PWA / Service worker (FIXED) =====
+  // Apps Script WebApp отдаёт страницу с origin script.googleusercontent.com, а сервис-воркер часто идёт через script.google.com/redirect.
+  // Браузер это запрещает => "origin does not match". Поэтому SW выключаем, чтобы не было ошибок.
+  async function setupPWA(){
+    try{
+      APP_URL = await apiGetAppUrl(); // .../exec
+      if (!APP_URL) return;
+
+      $("execHint").textContent = APP_URL + "?v=18";
+      $("appUrlBox").textContent = "Ссылка приложения: " + APP_URL + "?v=18";
+
+      // manifest (оставляем)
+      const manifestUrl = location.origin + location.pathname + "?manifest=1";
+      $("manifestLink").href = manifestUrl;
+
+      // service worker: НЕ регистрируем (иначе будет постоянная ошибка)
+      $("pwaStatus").textContent =
+        "ℹ️ PWA: установка/ярлык возможны, но Service Worker в Google Apps Script WebApp не поддерживается (ограничение домена).";
+
+    }catch(e){
+      $("pwaStatus").textContent = "⚠️ PWA не удалось включить: " + (e?.message || e);
+    }
+  }
+
+  window.addEventListener("beforeinstallprompt", (e)=>{
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    $("installBtn").disabled = false;
+  });
+
+  $("installBtn").addEventListener("click", async ()=>{
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    try{
+      await deferredInstallPrompt.userChoice;
+    }catch(e){}
+    deferredInstallPrompt = null;
+    $("installBtn").disabled = true;
+  });
+
+  $("pwaCheckBtn").addEventListener("click", async ()=>{
+    const hasBIP = !!deferredInstallPrompt;
+    const isStandalone = window.matchMedia && window.matchMedia("(display-mode: standalone)").matches;
+    $("pwaStatus").textContent =
+      `PWA статус: ServiceWorker отключен (Apps Script ограничение) • Standalone ${isStandalone ? "да" : "нет"} • InstallPrompt ${hasBIP ? "есть" : "нет"} • Онлайн ${navigator.onLine ? "да":"нет"}`;
+  });
+
+  // ===== Refresh (core) =====
+  async function refreshAll(keepDate){
+    if (!bridgeOk()){
+      setStatus("ОШИБКА: google.script.run недоступен.\nОткрой именно ссылку /exec после развертывания.");
+      return;
+    }
+    try{
+      const selectedDate = isoFromAny_($("date").value || todayISO());
+
+      cfg = await apiGetConfig() || cfg;
+      cfg.habits = Array.isArray(cfg.habits) ? cfg.habits : [];
+      cfg.goals  = Array.isArray(cfg.goals)  ? cfg.goals  : [];
+      cfg.challengesActive = Array.isArray(cfg.challengesActive) ? cfg.challengesActive : [];
+      cfg.templates = Array.isArray(cfg.templates) ? cfg.templates : [];
+      if (!cfg.theme) cfg.theme = "dark";
+      applyTheme(cfg.theme);
+
+      if (navigator.onLine && queueSize()){
+        await flushQueue();
+      }
+
+      const raw = await apiList();
+      items = normalizeItems_(raw);
+
+      renderHistoryFilters();
+      renderStatsFilters();
+      renderNewGoalDays();
+      renderHabitsList();
+      renderGoalsList();
+
+      renderTemplateSelect();
+      renderTemplatesList();
+
+      const d = keepDate ? selectedDate : todayISO();
+      $("date").value = d;
+      loadToForm(d);
+
+      const cd = new Date(d+"T00:00:00");
+      calendarCursor = new Date(cd.getFullYear(), cd.getMonth(), 1);
+      renderCalendar();
+
+      renderAchievements();
+      renderChallenges();
+      renderStreak();
+      renderSummaries();
+
+      $("lastSync").textContent = "Синхронизировано: " + new Date().toLocaleString();
+      setStatus("");
+
+      const activeTab = document.querySelector(".tab.active")?.dataset?.tab;
+      if (activeTab === "history") renderHistory();
+      if (activeTab === "stats") { renderCharts(); renderHeatmap(); resizeCharts(); }
+
+      applyQuickMode();
+      setQueueStatus();
+      icons();
+    }catch(e){
+      setStatus("Ошибка обновления:\n" + (e?.message || e));
+      setQueueStatus();
+    }
+  }
+
+  // ===== Init =====
+  (async ()=>{
+    $("date").value = todayISO();
+    applyQuickMode();
+    renderHistoryFilters();
+    renderStatsFilters();
+    renderNewGoalDays();
+    icons();
+    setQueueStatus();
+
+    await setupPWA();
+    await refreshReminderUI();
+    await refreshAll(true);
+  })();
+
+})();
+</script>
+</body>
+</html>
+
